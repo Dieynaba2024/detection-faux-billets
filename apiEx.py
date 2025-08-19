@@ -1,15 +1,15 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import joblib
 import numpy as np
 from io import StringIO
 import logging
 import traceback
-import uvicorn
 from pydantic import BaseModel
 from typing import List
-
+import os
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
@@ -32,7 +32,16 @@ class PredictionResponse(BaseModel):
     predictions: List[PredictionResult]
     stats: StatsResult
 
-app = FastAPI(debug=True)
+app = FastAPI(debug=False, title="Fake Bills Detection API", version="1.0.0")
+
+# Configuration CORS pour permettre les requêtes depuis Streamlit
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Pour le développement, restreindre en production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Fonction pour convertir les types NumPy en types Python natifs
 def convert_numpy_types(obj):
@@ -50,11 +59,16 @@ def convert_numpy_types(obj):
 
 # Chargement du modèle et du scaler
 try:
-    model = joblib.load('random_forest_model.sav')
-    scaler = joblib.load('scaler.sav')
+    # Chemin absolu pour Render
+    model_path = os.path.join(os.path.dirname(__file__), 'random_forest_model.sav')
+    scaler_path = os.path.join(os.path.dirname(__file__), 'scaler.sav')
+    
+    model = joblib.load(model_path)
+    scaler = joblib.load(scaler_path)
     logger.info("Modèle et scaler chargés avec succès")
 except Exception as e:
     logger.error(f"Erreur lors du chargement du modèle/scaler: {str(e)}")
+    logger.error(traceback.format_exc())
     raise RuntimeError("Impossible de charger le modèle ou le scaler") from e
 
 @app.post("/predict", response_model=PredictionResponse)
@@ -68,12 +82,15 @@ async def predict(file: UploadFile = File(...)):
         try:
             data = StringIO(contents.decode('utf-8'))
             df = pd.read_csv(data, sep=";")
-        except:
+        except UnicodeDecodeError:
             data = StringIO(contents.decode('cp1252'))
             df = pd.read_csv(data, sep=";")
+        except Exception as e:
+            logger.error(f"Erreur de lecture du fichier: {str(e)}")
+            raise HTTPException(status_code=400, detail="Format de fichier invalide")
         
         logger.info(f"Colonnes reçues: {df.columns.tolist()}")
-        logger.info(f"Exemple de données:\n{df.head().to_string()}")
+        logger.info(f"Nombre de lignes: {len(df)}")
 
         # Vérification des colonnes
         required_columns = ['diagonal', 'height_left', 'height_right', 'margin_low', 'margin_up', 'length']
@@ -83,6 +100,14 @@ async def predict(file: UploadFile = File(...)):
             raise HTTPException(
                 status_code=400,
                 detail=f"Colonnes requises manquantes: {missing_cols}"
+            )
+
+        # Vérification des données manquantes
+        if df[required_columns].isnull().any().any():
+            logger.error("Données manquantes détectées")
+            raise HTTPException(
+                status_code=400,
+                detail="Le fichier contient des données manquantes"
             )
 
         # Standardisation des données
@@ -98,8 +123,8 @@ async def predict(file: UploadFile = File(...)):
         for i, (pred, prob) in enumerate(zip(predictions, probabilities)):
             results.append({
                 "id": int(i),
-                "prediction": "Genuine" if pred else "Fake",
-                "probability": float(prob[1] if pred else prob[0])
+                "prediction": "Genuine" if pred == 1 else "Fake",
+                "probability": float(prob[1] if pred == 1 else prob[0])
             })
         
         # Statistiques globales
@@ -112,8 +137,8 @@ async def predict(file: UploadFile = File(...)):
                 "total": int(len(predictions)),
                 "genuine": genuine_count,
                 "fake": fake_count,
-                "genuine_percentage": float(round(genuine_count / len(predictions) * 100, 2)),
-                "fake_percentage": float(round(fake_count / len(predictions) * 100, 2))
+                "genuine_percentage": float(round(genuine_count / len(predictions) * 100, 2)) if len(predictions) > 0 else 0.0,
+                "fake_percentage": float(round(fake_count / len(predictions) * 100, 2)) if len(predictions) > 0 else 0.0
             }
         }
         
@@ -131,8 +156,19 @@ async def predict(file: UploadFile = File(...)):
 
 @app.get("/")
 async def root():
-    return {"message": "API de détection de faux billetsZ"}
+    return {
+        "message": "API de détection de faux billets",
+        "version": "1.0.0",
+        "endpoints": {
+            "POST /predict": "Analyser un fichier CSV de billets"
+        }
+    }
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "model_loaded": model is not None}
+
+# Pour le développement local
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("apiEX:app", host="0.0.0.0", port=8000)
