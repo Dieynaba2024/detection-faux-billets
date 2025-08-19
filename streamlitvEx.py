@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Application de détection de faux billets - Version optimisée pour Streamlit Cloud
-"""
 
 import streamlit as st
 import pandas as pd
@@ -282,6 +279,7 @@ if uploaded_file is not None:
             </ul>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
