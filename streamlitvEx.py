@@ -22,19 +22,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Chargement du modèle ---
-@st.cache_resource
-def load_model():
-    try:
-        model = joblib.load("random_forest_model.sav")
-        scaler = joblib.load("scaler.sav")
-        return model, scaler
-    except Exception as e:
-        st.error(f"Erreur de chargement du modèle : {str(e)}")
-        return None, None
-
-model, scaler = load_model()
-
 # Chemins des images (fichiers à la racine)
 GENUINE_BILL_IMAGE = "vraibillet.PNG"
 FAKE_BILL_IMAGE = "fauxbillet.png"
@@ -44,6 +31,9 @@ if not os.path.exists(GENUINE_BILL_IMAGE):
     st.error(f"Image manquante: {GENUINE_BILL_IMAGE}")
 if not os.path.exists(FAKE_BILL_IMAGE):
     st.error(f"Image manquante: {FAKE_BILL_IMAGE}")
+
+# URL de l'API FastAPI (à modifier selon votre déploiement)
+API_URL = "https://votre-api-fastapi.onrender.com/predict"  # Remplacez par votre URL
 
 # Fonction pour convertir image en base64
 def image_to_base64(image_path):
@@ -120,7 +110,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Section Analyse  <p style="color:white; opacity:0.9; margin:10;"> 🔎💰💵 ⛶ Solution de détection de faux billets</p>
+# Section Analyse
 uploaded_file = st.file_uploader(
     "Faites glisser et déposez le fichier ici ou cliquez sur le bouton 'Browse files' pour Parcourir",
     type=["csv"],
@@ -143,26 +133,20 @@ if uploaded_file is not None:
        
         if st.button("Lancer la détection", key="analyze_btn"):
             with st.spinner("Analyse en cours..."):
-                if model is None:
-                    st.error("Modèle non chargé - Impossible d'effectuer la prédiction")
-                else:
-                    try:
-                        # Exemple de prétraitement (à adapter selon vos colonnes)
-                        required_cols = ['diagonal', 'height_left', 'height_right', 'margin_low', 'margin_up', 'length']
-                        if not all(col in df.columns for col in required_cols):
-                            raise ValueError("Colonnes requises manquantes dans le fichier CSV")
-                           
-                        features = df[required_cols]
-                        features_scaled = scaler.transform(features)
-                        probas = model.predict_proba(features_scaled)
-                       
-                        predictions = [{
-                            'id': i,
-                            'prediction': "Genuine" if p[1] > 0.5 else "Fake",
-                            'probability': p[1]
-                        } for i, p in enumerate(probas)]
-                       
+                try:
+                    # Envoyer le fichier à l'API FastAPI
+                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "text/csv")}
+                    
+                    response = requests.post(API_URL, files=files, timeout=30)
+                    
+                    if response.status_code == 200:
+                        results = response.json()
+                        
                         st.success("Analyse terminée avec succès !")
+                        
+                        # Utiliser les résultats de l'API
+                        predictions = results["predictions"]
+                        stats = results["stats"]
                        
                         # Affichage des résultats
                         st.markdown("#### Résultats de la détection")
@@ -212,8 +196,9 @@ if uploaded_file is not None:
                                             """, unsafe_allow_html=True)
                        
                         # Statistiques
-                        genuine_count = sum(1 for p in predictions if p['prediction'] == 'Genuine')
-                        fake_count = len(predictions) - genuine_count
+                        genuine_count = stats["genuine"]
+                        fake_count = stats["fake"]
+                        total_count = stats["total"]
                        
                         st.markdown("<h4 style='text-align: center;'>Statistiques de détection</h4>", unsafe_allow_html=True)
                        
@@ -221,7 +206,7 @@ if uploaded_file is not None:
                         with col1:
                             st.markdown(f"""
                             <div class="card stat-card">
-                                <div class="stat-value">{len(predictions)}</div>
+                                <div class="stat-value">{total_count}</div>
                                 <div class="stat-label">Billets analysés</div>
                             </div>
                             """, unsafe_allow_html=True)
@@ -252,32 +237,38 @@ if uploaded_file is not None:
                             color_discrete_map={'Vrai': '#4CAF50', 'Faux': '#F44336'},
                             labels={'x': 'Véracité', 'y': 'Nombre de billets'},
                             text=[genuine_count, fake_count],
-                            width=450,  # Largeur légèrement augmentée pour meilleure lisibilité
+                            width=450,
                             height=500
                         )
                         
                         fig.update_traces(
                             texttemplate='%{text}',
                             textposition='outside',
-                            width=0.5  # Réduction de la largeur des barres pour espacement
+                            width=0.5
                         )
                         
                         fig.update_layout(
-                            showlegend=True,  # Supprimé pour plus de sobriété (les couleurs sont explicites)
+                            showlegend=True,
                             yaxis_title="Nombre de billets",
                             margin=dict(l=20, r=20, t=40, b=20),
                             autosize=False
                         )
                         
-                        # Solution de centrage élégante
-                        
-
                         st.markdown("<div style='display: flex; justify-content: center;'>", unsafe_allow_html=True)
-                        st.plotly_chart(fig, use_container_width=True)  # Garder False pour taille fixe
+                        st.plotly_chart(fig, use_container_width=True)
                         st.markdown("</div>", unsafe_allow_html=True)
                        
-                    except Exception as e:
-                        st.error(f"Erreur lors de la prédiction : {str(e)}")
+                    else:
+                        st.error(f"Erreur API: {response.status_code} - {response.text}")
+                        st.info("Vérifiez que l'API FastAPI est bien déployée et accessible")
+                        
+                except requests.exceptions.Timeout:
+                    st.error("Timeout: L'API n'a pas répondu dans le délai imparti (30 secondes)")
+                except requests.exceptions.ConnectionError:
+                    st.error("Impossible de se connecter à l'API. Vérifiez l'URL et la connexion.")
+                except Exception as e:
+                    st.error(f"Erreur lors de la communication avec l'API: {str(e)}")
+                    
     except Exception as e:
         st.error(f"Erreur de lecture du fichier: {str(e)}")
         st.markdown("""
@@ -292,3 +283,24 @@ if uploaded_file is not None:
         </div>
         """, unsafe_allow_html=True)
 
+# Section d'information sur la configuration
+with st.sidebar:
+    st.markdown("### 📋 Configuration requise")
+    st.info("""
+    **Colonnes nécessaires dans le CSV:**
+    - diagonal
+    - height_left  
+    - height_right
+    - margin_low
+    - margin_up
+    - length
+    """)
+    
+    st.markdown("### 🌐 URL de l'API")
+    st.code(API_URL)
+    
+    st.markdown("### ⚠️ Remarque importante")
+    st.warning("""
+    Assurez-vous que votre API FastAPI est déployée et accessible à l'URL configurée.
+    Modifiez la variable `API_URL` si nécessaire.
+    """)
