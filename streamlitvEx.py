@@ -33,7 +33,7 @@ if not os.path.exists(FAKE_BILL_IMAGE):
     st.error(f"Image manquante: {FAKE_BILL_IMAGE}")
 
 # URL de l'API FastAPI (à modifier selon votre déploiement)
-API_URL = "https://votre-api-fastapi.onrender.com/predict"  # Remplacez par votre URL
+API_URL = "https://fake-bills-api.onrender.com/predict"  # Remplacez par votre URL
 
 # Fonction pour convertir image en base64
 def image_to_base64(image_path):
@@ -105,7 +105,7 @@ st.markdown("""
 # Header
 st.markdown("""
 <div class="header">
-    <h2 style="color:white; margin:0;">  📇 Application Scan Franc cfa </h2>
+    <h2 style="color:white; margin:0;">  📇 Application Scan Franc cfa rrrrr </h2>
     <p style="color:white; opacity:0.9; margin:10;"> ✅ Solution de détection de faux billets</p>
 </div>
 """, unsafe_allow_html=True)
@@ -304,3 +304,4 @@ with st.sidebar:
     Assurez-vous que votre API FastAPI est déployée et accessible à l'URL configurée.
     Modifiez la variable `API_URL` si nécessaire.
     """)
+
