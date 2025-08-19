@@ -32,8 +32,8 @@ if not os.path.exists(GENUINE_BILL_IMAGE):
 if not os.path.exists(FAKE_BILL_IMAGE):
     st.error(f"Image manquante: {FAKE_BILL_IMAGE}")
 
-# URL de l'API FastAPI (à modifier selon votre déploiement)
-API_URL = "https://fake-bills-api.onrender.com/predict"  # Remplacez par votre URL
+# URL de l'API FastAPI
+API_URL = "https://fake-bills-api.onrender.com/predict"  
 
 # Fonction pour convertir image en base64
 def image_to_base64(image_path):
@@ -282,6 +282,7 @@ if uploaded_file is not None:
             </ul>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
