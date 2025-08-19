@@ -137,7 +137,7 @@ if uploaded_file is not None:
                     # Envoyer le fichier à l'API FastAPI
                     files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "text/csv")}
                     
-                    response = requests.post(API_URL, files=files, timeout=30)
+                    response = requests.post(API_URL, files=files, timeout=800)
                     
                     if response.status_code == 200:
                         results = response.json()
@@ -282,6 +282,7 @@ if uploaded_file is not None:
             </ul>
         </div>
         """, unsafe_allow_html=True)
+
 
 
 
