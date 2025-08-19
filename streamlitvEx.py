@@ -283,25 +283,5 @@ if uploaded_file is not None:
         </div>
         """, unsafe_allow_html=True)
 
-# Section d'information sur la configuration
-with st.sidebar:
-    st.markdown("### 📋 Configuration requise")
-    st.info("""
-    **Colonnes nécessaires dans le CSV:**
-    - diagonal
-    - height_left  
-    - height_right
-    - margin_low
-    - margin_up
-    - length
-    """)
-    
-    st.markdown("### 🌐 URL de l'API")
-    st.code(API_URL)
-    
-    st.markdown("### ⚠️ Remarque importante")
-    st.warning("""
-    Assurez-vous que votre API FastAPI est déployée et accessible à l'URL configurée.
-    Modifiez la variable `API_URL` si nécessaire.
-    """)
+
 
